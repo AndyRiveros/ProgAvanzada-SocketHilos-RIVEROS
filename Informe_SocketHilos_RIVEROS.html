@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Informe - Practica Socket con Hilos - RIVEROS</title>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #222; }
+  h1 { background: #1a1a2e; color: white; padding: 20px; border-radius: 8px; }
+  h2 { color: #1a1a2e; border-bottom: 2px solid #1a1a2e; padding-bottom: 5px; margin-top: 30px; }
+  h3 { color: #16213e; margin-top: 20px; }
+  table { border-collapse: collapse; width: 100%; margin: 15px 0; }
+  th { background: #1a1a2e; color: white; padding: 10px; text-align: left; }
+  td { border: 1px solid #ddd; padding: 9px 12px; }
+  tr:nth-child(even) { background: #f5f5f5; }
+  pre { background: #1e1e1e; color: #d4d4d4; padding: 20px; border-radius: 8px; overflow-x: auto; font-size: 13px; line-height: 1.5; }
+  .keyword { color: #569cd6; }
+  .comment { color: #6a9955; }
+  .string { color: #ce9178; }
+  .tag { background: #e8f5e9; border: 1px solid #4caf50; border-radius: 4px; padding: 2px 8px; color: #2e7d32; font-size: 13px; margin: 3px; display: inline-block; }
+  .info-box { background: #e3f2fd; border-left: 4px solid #1976d2; padding: 15px; margin: 15px 0; border-radius: 4px; }
+  .warn-box { background: #fff3e0; border-left: 4px solid #f57c00; padding: 15px; margin: 15px 0; border-radius: 4px; }
+  .success-box { background: #e8f5e9; border-left: 4px solid #388e3c; padding: 15px; margin: 15px 0; border-radius: 4px; }
+  .log-sim { background: #0d0d0d; color: #00ff00; font-family: monospace; padding: 15px; border-radius: 8px; font-size: 13px; line-height: 1.7; }
+  .section { margin: 25px 0; }
+  .arch { text-align: center; background: #f5f5f5; padding: 20px; border-radius: 8px; font-family: monospace; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<h1>Practica: Socket con Hilos (Threads) - 2026</h1>
+
+<table>
+  <tr><th>Campo</th><th>Detalle</th></tr>
+  <tr><td><strong>Alumno</strong></td><td>Andres Fernando RIVEROS</td></tr>
+  <tr><td><strong>Materia</strong></td><td>Programacion Avanzada - FCSAIDSPA</td></tr>
+  <tr><td><strong>Universidad</strong></td><td>UDA - Universidad del Aconcagua</td></tr>
+  <tr><td><strong>Fecha de entrega</strong></td><td>Abril 2026</td></tr>
+  <tr><td><strong>Repositorio</strong></td><td><a href="https://github.com/AndyRiveros/ProgAvanzada-SocketHilos-RIVEROS">github.com/AndyRiveros/ProgAvanzada-SocketHilos-RIVEROS</a></td></tr>
+</table>
+
+<div class="section">
+<h2>1. Descripcion del Problema</h2>
+<p>
+Esta practica es la <strong>segunda parte</strong> del trabajo de Sockets en Java, tomando como base la 
+"Practica de Socket base - 2026" (ya aprobada). El objetivo es extender el servidor para que pueda 
+<strong>atender multiples clientes de forma concurrente mediante hilos (Threads)</strong>, 
+implementando un sistema de chat completo con comandos.
+</p>
+<div class="info-box">
+<strong>Diferencia clave con la practica anterior:</strong> En el socket base, el servidor solo podia atender 
+un cliente a la vez (bloqueante). En esta version, cada cliente nuevo genera un hilo independiente, 
+permitiendo multiples conexiones simultaneas sin bloqueos.
+</div>
+</div>
+
+<div class="section">
+<h2>2. Arquitectura del Sistema</h2>
+<div class="arch">
+<pre>
+  [Cliente 1]  ---- TCP:5000 ----                                   +--- [Servidor] --- [ManejadorCliente - Hilo 1]
+  [Cliente 2]  ---- TCP:5000 ----/          |
+                                             +---------- [ManejadorCliente - Hilo 2]
+  [Cliente N]  ---- TCP:5000 ------------- ...
+</pre>
+</div>
+<p>
+El servidor escucha en el puerto 5000. Por cada conexion entrante, instancia un 
+<code>ManejadorCliente</code> y lo ejecuta en un nuevo <code>Thread</code>. El mapa de clientes 
+es compartido y protegido con <code>ConcurrentHashMap</code> y metodos <code>synchronized</code>.
+</p>
+
+<table>
+  <tr><th>Clase</th><th>Responsabilidad</th><th>Patron</th></tr>
+  <tr><td>Servidor.java</td><td>Acepta conexiones, gestiona mapa de clientes, log</td><td>Singleton del estado global</td></tr>
+  <tr><td>ManejadorCliente.java</td><td>Atiende a un cliente, procesa comandos</td><td>Runnable / Hilo por cliente</td></tr>
+  <tr><td>Cliente.java</td><td>Envia/recibe mensajes, hilo receptor</td><td>Hilo concurrente (daemon)</td></tr>
+</table>
+</div>
+
+<div class="section">
+<h2>3. Comandos Implementados</h2>
+<table>
+  <tr><th>Comando</th><th>Descripcion</th><th>Ejemplo</th></tr>
+  <tr><td><code>FECHA</code></td><td>Consulta fecha y hora del servidor</td><td>FECHA</td></tr>
+  <tr><td><code>LISTA</code></td><td>Lista todos los clientes conectados</td><td>LISTA</td></tr>
+  <tr><td><code>CALC &lt;expr&gt;</code></td><td>Resuelve expresion matematica</td><td>CALC 5+3*2</td></tr>
+  <tr><td><code>*&lt;nombre&gt; &lt;msg&gt;</code></td><td>Mensaje privado a un cliente</td><td>*Juan Hola!</td></tr>
+  <tr><td><code>*ALL &lt;msg&gt;</code></td><td>Broadcast a todos los clientes</td><td>*ALL Como estan todos?</td></tr>
+  <tr><td><code>SALIR</code></td><td>Desconecta al cliente</td><td>SALIR</td></tr>
+</table>
+</div>
+
+<div class="section">
+<h2>4. Codigo Fuente</h2>
+
+<h3>4.1 Servidor.java</h3>
+<pre>
+import java.io.*;
+import java.net.*;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+
+public class Servidor {
+    private static ConcurrentHashMap&lt;String, ManejadorCliente&gt; clientes = new ConcurrentHashMap&lt;&gt;();
+
+    public static void main(String[] args) {
+        int puerto = 5000;
+        System.out.println("Servidor de Chat con Hilos - RIVEROS");
+        System.out.println("Escuchando en puerto " + puerto + "...");
+
+        try (ServerSocket serverSocket = new ServerSocket(puerto)) {
+            while (true) {
+                Socket socket = serverSocket.accept();
+                log("Nueva conexion desde: " + socket.getInetAddress());
+                new Thread(new ManejadorCliente(socket)).start();
+            }
+        } catch (IOException e) {
+            System.err.println("[ERROR] " + e.getMessage());
+        }
+    }
+
+    public static synchronized String registrarCliente(String nombreBase, ManejadorCliente handler) { ... }
+    public static synchronized void eliminarCliente(String nombre) { ... }
+    public static synchronized String listarClientes() { ... }
+    public static synchronized boolean enviarA(String destino, String msg, String origen) { ... }
+    public static synchronized void enviarATodos(String msg, String origen) { ... }
+    public static void log(String msg) {
+        String ts = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
+        System.out.println("[" + ts + "] " + msg);
+    }
+}
+</pre>
+
+<h3>4.2 ManejadorCliente.java (fragmento principal)</h3>
+<pre>
+public class ManejadorCliente implements Runnable {
+    private Socket socket;
+    private String nombreUsuario;
+    ...
+    @Override
+    public void run() {
+        // 1. Solicitar nombre unico
+        nombreUsuario = Servidor.registrarCliente(entrada.readLine(), this);
+        // 2. Enviar menu de bienvenida
+        salida.println("Bienvenido, " + nombreUsuario + "! Comandos: FECHA, LISTA, CALC...");
+        // 3. Ciclo de atencion al cliente
+        String linea;
+        while ((linea = entrada.readLine()) != null) {
+            Servidor.log("[" + nombreUsuario + "] " + linea);
+            procesarComando(linea.trim());
+        }
+    }
+}
+</pre>
+
+<h3>4.3 Cliente.java (fragmento)</h3>
+<pre>
+public class Cliente {
+    public static void main(String[] args) throws IOException {
+        Socket socket = new Socket("localhost", 5000);
+        // Hilo receptor (daemon) para recibir mensajes del servidor
+        Thread receptor = new Thread(() -> {
+            try {
+                String linea;
+                while ((linea = entradaServidor.readLine()) != null)
+                    System.out.println(linea);
+            } catch (IOException e) { ... }
+        });
+        receptor.setDaemon(true);
+        receptor.start();
+        // Leer del teclado y enviar
+        String linea;
+        while ((linea = teclado.readLine()) != null) {
+            salidaServidor.println(linea);
+            if (linea.equalsIgnoreCase("SALIR")) break;
+        }
+    }
+}
+</pre>
+</div>
+
+<div class="section">
+<h2>5. Simulacion de Funcionamiento</h2>
+<p>A continuacion se muestra como se ve la ejecucion del sistema con 2 clientes conectados:</p>
+
+<h3>Consola del Servidor</h3>
+<div class="log-sim">
+==========================================<br>
+  Servidor de Chat con Hilos - RIVEROS  <br>
+==========================================<br>
+Escuchando en puerto 5000...<br>
+<br>
+[2026-04-22 14:30:01] Nueva conexion desde: /127.0.0.1<br>
+[2026-04-22 14:30:01] Cliente registrado como: Andres<br>
+[2026-04-22 14:30:45] Nueva conexion desde: /127.0.0.1<br>
+[2026-04-22 14:30:45] Cliente registrado como: Juan<br>
+[2026-04-22 14:31:00] [Andres] Recibido: LISTA<br>
+[2026-04-22 14:31:15] [Andres] Recibido: *ALL Como estan todos?<br>
+[2026-04-22 14:31:15] Broadcast de Andres: Como estan todos?<br>
+[2026-04-22 14:31:30] [Juan] Recibido: *Andres Muy bien! Y vos?<br>
+[2026-04-22 14:31:30] Mensaje privado de Juan para Andres: Muy bien! Y vos?<br>
+[2026-04-22 14:31:50] [Andres] Recibido: FECHA<br>
+[2026-04-22 14:32:10] [Juan] Recibido: CALC 15*3+2<br>
+[2026-04-22 14:32:30] [Juan] Recibido: SALIR<br>
+[2026-04-22 14:32:30] Cliente desconectado: Juan
+</div>
+
+<h3>Consola del Cliente "Andres"</h3>
+<div class="log-sim">
+==========================================<br>
+    Cliente de Chat - RIVEROS            <br>
+==========================================<br>
+Conectando a localhost:5000...<br>
+Conectado exitosamente al servidor!<br>
+<br>
+Ingrese su nombre de usuario:<br>
+> Andres<br>
+<br>
+==========================================<br>
+ Bienvenido al Chat del Servidor, Andres!<br>
+==========================================<br>
+Comandos: FECHA | LISTA | CALC | *nombre msg | *ALL msg | SALIR<br>
+==========================================<br>
+<br>
+> LISTA<br>
+Clientes conectados:<br>
+  - Andres<br>
+  - Juan<br>
+<br>
+> *ALL Como estan todos?<br>
+[Tu -> TODOS]: Como estan todos?<br>
+[MSG de Juan -> Andres]: Muy bien! Y vos?<br>
+<br>
+> FECHA<br>
+Fecha y hora del servidor: miercoles 22/04/2026 14:31:50<br>
+<br>
+[BROADCAST de SERVIDOR]: Juan se ha desconectado.
+</div>
+
+<h3>Consola del Cliente "Juan"</h3>
+<div class="log-sim">
+Conectando a localhost:5000...<br>
+Conectado exitosamente!<br>
+Ingrese su nombre de usuario:<br>
+> Juan<br>
+Bienvenido al Chat del Servidor, Juan!<br>
+<br>
+[BROADCAST de SERVIDOR]: Andres se ha conectado al chat.<br>
+<br>
+> *Andres Muy bien! Y vos?<br>
+[Tu -> Andres]: Muy bien! Y vos?<br>
+<br>
+> CALC 15*3+2<br>
+CALC 15*3+2 = 47<br>
+<br>
+> SALIR<br>
+Hasta luego, Juan. Chau!
+</div>
+</div>
+
+<div class="section">
+<h2>6. Caracteristicas de Concurrencia</h2>
+<table>
+  <tr><th>Mecanismo</th><th>Uso en el proyecto</th></tr>
+  <tr><td><code>Thread</code> + <code>Runnable</code></td><td>Un hilo por cada cliente conectado (ManejadorCliente)</td></tr>
+  <tr><td><code>ConcurrentHashMap</code></td><td>Mapa de clientes thread-safe sin bloqueos innecesarios</td></tr>
+  <tr><td><code>synchronized</code></td><td>Metodos de acceso al mapa de clientes para evitar race conditions</td></tr>
+  <tr><td>Hilo daemon</td><td>Hilo receptor en el Cliente (muere con el proceso principal)</td></tr>
+</table>
+
+<div class="success-box">
+<strong>Ventaja del modelo:</strong> Mientras un cliente espera input del usuario, los demas clientes 
+son atendidos normalmente por sus propios hilos. No hay bloqueos cruzados entre clientes.
+</div>
+</div>
+
+<div class="section">
+<h2>7. Conclusiones</h2>
+<p>
+Esta practica extendio exitosamente el servidor de socket base para soportar multiples clientes 
+concurrentes mediante el uso de <strong>hilos Java (Threads)</strong>. Se implementaron todos los 
+comandos requeridos por el enunciado: mensajeria entre clientes (individual y broadcast), 
+consulta de fecha/hora, calculo de expresiones matematicas, listado de clientes conectados 
+y un sistema de log completo en la consola del servidor.
+</p>
+<p>
+La solucion utiliza <code>ConcurrentHashMap</code> para el manejo thread-safe del registro de clientes 
+y metodos <code>synchronized</code> para garantizar consistencia en las operaciones de escritura sobre 
+el estado compartido.
+</p>
+
+<div class="success-box">
+<strong>Relacion con la practica anterior:</strong> La "Practica de Socket base - 2026" (aprobada, 
+entregada el 11/04/2026) implemento el servidor simple de un solo cliente. Esta practica toma ese 
+codigo como base y lo refactoriza completamente para soporte multi-cliente con hilos, manteniendo 
+la misma logica de comunicacion TCP y el mismo estilo de codigo.
+</div>
+</div>
+
+</body>
+</html>
